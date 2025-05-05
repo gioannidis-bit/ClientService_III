@@ -58,53 +58,119 @@ public class AccessISScanner : IScanner
 		connection = factory.GetConnection(config);
 	}
 
-	public void Reconnect()
-	{
-		try
-		{
-			device.Dispose();
-			device = null;
-			device = new AccessISCMD();
-			device.SetText = Send;
-			device.Initialise();
-		}
-		catch (Exception ex)
-		{
-			logger.Error(ex.Message);
-		}
-	}
+    public void Reconnect()
+    {
+        try
+        {
+            logger.Info("Starting scanner reconnect sequence...");
 
-	public string Send(string data)
-	{
-		if (config.Debug)
-		{
-			logger.Info("Sending Data: " + data);
-		}
-		try
-		{
-			if (data.ToString().StartsWith("C") && !data.ToString().ToLower().StartsWith("c<ita") && !data.ToString().ToLower().StartsWith("ca"))
-			{
-				new CardToCloudHelper().SendToCloud(data, config.RowSeparator, config.PostToCloudDelay ?? 20);
-			}
-			else
-			{
-				CreateConnection();
-				connection.Send((int)config.RowSeparator + data);
-				Reconnect();
-			}
-		}
-		catch (Exception ex)
-		{
-			logger.Error(ex.Message);
-		}
-		finally
-		{
-			if (connection != null)
-			{
-				connection.Dispose();
-				connection = null;
-			}
-		}
-		return string.Empty;
-	}
+            // 1. Αποσύνδεση υπάρχουσας συσκευής
+            if (device != null)
+            {
+                try
+                {
+                    // Καλούμε απευθείας το Release
+                    device.Release();
+                    logger.Info("Successfully released previous device connection");
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"Error releasing device: {ex.Message}", ex);
+                }
+                device = null;
+            }
+
+            // 2. Σημαντική παύση για να επιτρέψουμε στη συσκευή να επανέλθει
+            logger.Info("Waiting for device to reset...");
+            System.Threading.Thread.Sleep(500); // 500ms παύση
+
+            // 3. Δημιουργία νέας συσκευής
+            device = new AccessISCMD();
+            device.SetText = Send;
+
+            // 4. Αρχικοποίηση της νέας συσκευής - με έλεγχο επιτυχίας
+            bool initSuccess = device.Initialise();
+
+            if (initSuccess)
+            {
+                logger.Info("Scanner successfully reinitialized after scan.");
+            }
+            else
+            {
+                // Δοκιμάζουμε ξανά μετά από λίγο αν αποτύχει
+                logger.Info("First initialization attempt failed. Trying again after delay...");
+                System.Threading.Thread.Sleep(1000); // 1 δευτερόλεπτο παύση
+
+                if (device.Initialise())
+                {
+                    logger.Info("Scanner successfully reinitialized on second attempt.");
+                }
+                else
+                {
+                    logger.Error("Failed to reinitialize scanner after multiple attempts!");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.Error($"Error in Reconnect(): {ex.Message}", ex);
+        }
+    }
+
+    public string Send(string data)
+    {
+        if (config.Debug)
+        {
+            logger.Info("Sending Data: " + data);
+        }
+        try
+        {
+            if (data.ToString().StartsWith("C") && !data.ToString().ToLower().StartsWith("c<ita") && !data.ToString().ToLower().StartsWith("ca"))
+            {
+                new CardToCloudHelper().SendToCloud(data, config.RowSeparator, config.PostToCloudDelay ?? 20);
+            }
+            else
+            {
+                CreateConnection();
+                connection.Send((int)config.RowSeparator + data);
+
+                // Μετά το σκανάρισμα, απλά επαναφέρουμε το MSR αντί για πλήρη επανεκκίνηση
+                try
+                {
+                    if (device != null)
+                    {
+                        bool resetSuccess = device.ResetMSR();
+                        if (!resetSuccess)
+                        {
+                            logger.Warn("Αποτυχία επαναφοράς MSR μετά το σκανάρισμα - δοκιμή πλήρους επανασύνδεσης...");
+                            Reconnect();
+                        }
+                        else
+                        {
+                            logger.Info("Επιτυχής επαναφορά MSR μετά το σκανάρισμα");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"Σφάλμα κατά την επαναφορά MSR: {ex.Message}", ex);
+                    // Δοκιμάζουμε πλήρη επανασύνδεση αν αποτύχει το reset
+                    Reconnect();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex.Message);
+        }
+        finally
+        {
+            if (connection != null)
+            {
+                connection.Dispose();
+                connection = null;
+            }
+        }
+        return string.Empty;
+    }
 }

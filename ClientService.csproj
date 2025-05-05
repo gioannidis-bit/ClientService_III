@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <AssemblyName>ClientService</AssemblyName>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
@@ -12,7 +12,9 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup />
-  <ItemGroup />
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="5.0.0" />
+  </ItemGroup>
   <ItemGroup>
     <Reference Include="log4net">
       <HintPath>\\filesrv\DEV\VERSIONS\Protel\Passport Scanner Socket\ver. 1.0.10.6\Client\DocumentScanner\log4net.dll</HintPath>

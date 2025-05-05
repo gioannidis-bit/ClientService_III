@@ -19,7 +19,24 @@ public class MainCode
 
 	public void Main()
 	{
-		string exName = Process.GetCurrentProcess().ProcessName;
+        // Στη μέθοδο Main()
+        if (Debugger.IsAttached)
+        {
+            logger.Info("Application opened in Debug mode");
+            using Service service = new Service(ExecName, SERVICENAME);
+            string[] args = new string[0];
+            service.Start(args);
+
+            Console.WriteLine("Press any key to stop the service...");
+            Console.ReadKey();
+
+            service.Stop();
+            return;
+        }
+
+
+
+        string exName = Process.GetCurrentProcess().ProcessName;
 		logger.Info(exName);
 		if (!string.IsNullOrEmpty(exName))
 		{
